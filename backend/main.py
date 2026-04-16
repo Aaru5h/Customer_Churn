@@ -21,8 +21,9 @@ from sqlalchemy.orm import Session
 import pandas as pd
 
 from model import train_models, predict, get_feature_names
-from db import init_db, get_db, ChatMessage, SessionLocal
-from rag_engine import init_faiss, create_agent
+from model import train_models, predict, get_feature_names
+from backend.db import init_db, get_db, ChatMessage, SessionLocal
+from backend.rag_engine import init_faiss, create_agent
 from langchain_core.messages import HumanMessage
 
 import logging

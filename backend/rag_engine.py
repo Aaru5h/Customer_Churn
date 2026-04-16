@@ -25,7 +25,7 @@ from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
 
 from model import predict, build_preprocessor, train_models
-from db import SessionLocal, RetentionStrategy
+from backend.db import SessionLocal, RetentionStrategy
 
 import logging
 logging.basicConfig(level=logging.INFO)
