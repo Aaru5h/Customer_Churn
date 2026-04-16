@@ -1,35 +1,36 @@
-# Credit Card Customer Churn Predictor
+# AI Agentic Customer Churn Predictor
 
-A production-grade machine learning web application that predicts the probability of a credit card customer churning, identifies the key behavioral drivers of disengagement, and presents model performance insights — all powered by classical ML (Scikit-learn) with a Streamlit interface.
+A production-grade, full-stack machine learning application that predicts the probability of credit card customer churn. It features a classical ML predictive core powered by Scikit-learn, combined with a cutting-edge **LangGraph & FAISS AI Retention Specialist Agent**.
 
----
-
-## Features
-
-- **Churn probability prediction** with color-coded risk banners (🔴 HIGH / 🟢 LOW)
-- **Two selectable models**: Logistic Regression and Decision Tree — switchable via sidebar
-- **Top-5 prediction drivers** — per-customer feature importance chart
-- **Model performance dashboard**: Confusion matrix, classification report, feature importance/coefficient chart
-- **Full Scikit-learn Pipeline** — consistent preprocessing at training and prediction time
-- **Streamlit Community Cloud ready** — deploy in minutes
+This architecture runs on a **FastAPI** backend ("The Brain") and a **Streamlit** frontend ("The Face") styled with a premium Glassmorphism design and highly secure guardrails.
 
 ---
 
-## Tech Stack
+## 🔥 Key Features
 
-| Layer         | Library                          |
-|---------------|----------------------------------|
-| Language      | Python 3.10+                     |
-| ML Framework  | Scikit-learn (Pipelines)         |
-| UI            | Streamlit 1.32                   |
-| Visualization | Matplotlib 3.8, Seaborn 0.13     |
-| Data          | Pandas 2.2, NumPy 1.26           |
+- **Agentic AI Specialist**: Chat with a LangGraph AI agent powered by Groq (Llama 3) that can retrieve historical database trends (FAISS) and run live ML predictions on explicit command.
+- **Unbreakable Guardrails**: AI persona is strictly limited to banking and churn analysis. Unrelated queries are rejected.
+- **Hybrid Database**: Local `FAISS` for semantic vector search and `SQLite` for persistent Agent Chat History and Strategies.
+- **Full-Stack Separation**: A complete decouple of the UI from the Machine Learning logic. Fast frontend iteration, stable backend training.
+- **Premium Glass UI**: A visually breathtaking "Dark Mode" aesthetic using the Outfit typeface and glassmorphism styling.
 
 ---
 
-## Dataset Setup
+## 🛠️ Tech Stack
 
-1. Download the **BankChurners** dataset (Credit Card Customer Churn dataset).
+| Layer          | Technology                                           |
+|----------------|------------------------------------------------------|
+| **Frontend**   | Streamlit 1.32 (Requests, Custom CSS)                |
+| **Backend**    | FastAPI, Uvicorn, SQLite (SQLAlchemy)                |
+| **ML Core**    | Scikit-learn, Pandas, NumPy                          |
+| **AI Agent**   | LangGraph, LangChain, Groq API (Llama 3)             |
+| **Vector DB**  | FAISS, HuggingFace Sentence Transformers             |
+
+---
+
+## 📂 Dataset Setup
+
+1. Download the **BankChurners** dataset.
 2. Place the file at the following path relative to the project root:
 
 ```
@@ -38,81 +39,58 @@ CHURN_PRJ/
     └── BankChurners.csv
 ```
 
-The app will not start without this file being present.
+The FastAPI backend will read this to train the classical ML models and build the FAISS Vector Index on startup.
 
 ---
 
-## Installation
+## 🚀 Installation & Setup
 
 ```bash
 # 1. Clone or download the project
 cd CHURN_PRJ
 
-# 2. Create and activate a virtual environment (recommended)
-python3 -m venv venv
-source venv/bin/activate   # On Windows: venv\Scripts\activate
-
-# 3. Install dependencies
+# 2. Install dependencies
 pip install -r requirements.txt
 ```
 
 ---
 
-## Running Locally
+## 🏃‍♂️ Running the System Locally
 
+Because this is a full-stack project, you must run both the backend server and the frontend client simultaneously in separate terminal windows.
+
+### Terminal 1: Start the FastAPI Backend (The Brain)
+```bash
+# Set your Groq API key if you want to use the AI Agent in the backend environment
+export GROQ_API_KEY="your-groq-api-key"
+
+uvicorn backend.main:app --reload
+```
+The backend runs on `http://127.0.0.1:8000`. You can access the API Swagger documentation at `http://127.0.0.1:8000/docs`.
+
+### Terminal 2: Start the Streamlit Frontend (The Face)
 ```bash
 streamlit run app.py
 ```
-
-The app opens automatically at `http://localhost:8501`.
-
----
-
-## Project Structure
-
-```
-CHURN_PRJ/
-├── app.py              # Streamlit UI — all rendering logic
-├── model.py            # ML pipelines, training, evaluation, prediction
-├── preprocessing.py    # Feature lists, ColumnTransformer, data loader
-├── requirements.txt    # Pinned dependencies
-├── README.md           # This file
-└── data/
-    └── BankChurners.csv  # Dataset (not included — see Dataset Setup)
-```
+The UI runs automatically at `http://localhost:8501`.
 
 ---
 
-## Deploying to Streamlit Community Cloud
+## 🤖 Using the AI Agent
 
-1. Push the entire project (minus the CSV) to a **public GitHub repository**.
-2. Add `BankChurners.csv` to the `data/` folder and commit it, **or** use [Streamlit Secrets](https://docs.streamlit.io/streamlit-community-cloud/deploy-your-app/secrets-management) to host it remotely and update the `DATA_PATH` in `app.py`.
-3. Log in to [share.streamlit.io](https://share.streamlit.io).
-4. Click **New app** → select your repository → set **Main file path** to `app.py`.
-5. Click **Deploy** — the app will be live within a few minutes.
-
-> **Note:** Streamlit Community Cloud uses Python 3.10 by default. All pinned versions in `requirements.txt` are validated against that runtime.
-
----
-
-## Models
-
-| Model               | Configuration                          |
-|---------------------|----------------------------------------|
-| Logistic Regression | `max_iter=1000`, `random_state=42`     |
-| Decision Tree       | `max_depth=6`, `random_state=42`       |
-
-Both models are trained on an **80/20 stratified train-test split** using a full Scikit-learn Pipeline:
-
-```
-ColumnTransformer (impute + scale/encode) → Classifier
-```
+1. Open the Streamlit App.
+2. Ensure the Backend is running (if not, the UI will warn you).
+3. Open the sidebar and enter your **Groq API Key**.
+4. Navigate to the **💬 AI Agent** tab.
+5. Ask questions like:
+   - *"What are the main traits of churned customers in Germany?"*
+   - *"Suggest a retention strategy for older customers with high balances."*
+   - *"Analyze churn risk for a male, 42 years old, 700 credit score, in France, 4 tenure, 40000 balance."*
 
 ---
 
-## Evaluation Metrics
+## 🛡️ Architecture & Security
 
-- Accuracy, Precision (macro), Recall (macro), F1-Score (macro)
-- Confusion Matrix (seaborn annotated heatmap)
-- Classification Report (per-class breakdown)
-- Feature Importances (Decision Tree) / Absolute Coefficients (Logistic Regression)
+- **Pydantic Validation**: All frontend requests are strictly validated before entering the ML pipeline.
+- **Agent Guardrails**: The LangGraph state machine enforces the `SYSTEM_PROMPT` recursively. It physically lacks tools to execute system operations or non-banking domain reasoning.
+- **Data Privacy**: Vector search runs entirely locally via FAISS and `sentence-transformers/all-MiniLM-L6-v2`. No raw tabular data is sent to external APIs (only context segments specifically requested in chat).
