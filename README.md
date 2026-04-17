@@ -76,6 +76,29 @@ The UI runs automatically at `http://localhost:8501`.
 
 ---
 
+## 🌐 Cloud Deployment (Render)
+
+This project is configured for one-click deployment using **Render Blueprints**.
+
+### 1. Database Setup (Neon)
+- Create a free account at [Neon.tech](https://neon.tech).
+- Create a new project and copy the **Connection String** (`postgresql://...`).
+
+### 2. Render Deployment
+- Push your code to a GitHub repository.
+- In the Render Dashboard, click **New +** > **Blueprint**.
+- Select your repository.
+- Render will automatically detect the `render.yaml` file and create:
+    - `churn-prediction-backend` (FastAPI)
+    - `churn-prediction-frontend` (Streamlit)
+
+### 3. Environment Variables
+Ensure the following are set in your Render services:
+- `GROQ_API_KEY`: Your Groq API key (Set in the Backend service).
+- `DATABASE_URL`: Your Neon Postgres connection string (Set in the Backend service).
+
+---
+
 ## 🤖 Using the AI Agent
 
 1. Open the Streamlit App.
