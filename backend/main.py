@@ -42,8 +42,8 @@ async def lifespan(app: FastAPI):
     logger.info("Starting up FastAPI - Initializing Models and DBs...")
     global model_results, agent_app
     
-    # 1. Initialize SQLite Database
-    init_db()
+    # 1. Database is initialized lazily to avoid startup timeouts on Render
+    logger.info("Database will be initialized lazily.")
     
     # 2. Models are loaded lazily when needed
     logger.info("Models will be loaded lazily to save RAM.")
@@ -97,6 +97,7 @@ class ChatResponse(BaseModel):
 
 @app.get("/")
 def health_check():
+    logger.info("Health check endpoint hit.")
     return {"status": "ok", "message": "Brain is operational."}
 
 @app.get("/metrics")

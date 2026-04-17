@@ -9,11 +9,19 @@ import os
 from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./bank_churn_rag.db")
 
+# SQLAlchemy 1.4+ requires 'postgresql' prefix instead of 'postgres'
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
 connect_args = {}
-if DATABASE_URL.startswith("sqlite"):
+if "sqlite" in DATABASE_URL:
     connect_args["check_same_thread"] = False
 
 engine = create_engine(
@@ -47,7 +55,15 @@ class RetentionStrategy(Base):
 def init_db():
     Base.metadata.create_all(bind=engine)
 
+_db_initialized = False
+
 def get_db():
+    global _db_initialized
+    if not _db_initialized:
+        logger.info("Lazily initializing database tables...")
+        init_db()
+        _db_initialized = True
+        
     db = SessionLocal()
     try:
         yield db
