@@ -52,15 +52,9 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Failed to train models: {e}")
         
-    # 3. Initialize FAISS Vector Database
-    init_faiss()
-    
-    # 4. Initialize LangGraph Agent
-    try:
-        agent_app = create_agent()
-        logger.info("LangGraph Agent initialized successfully.")
-    except Exception as e:
-        logger.error(f"Failed to initialize LangGraph Agent: {e}")
+    # 3. FAISS + Agent are lazy-loaded on first /chat request to save RAM
+    #    (sentence-transformers model is ~200MB — too heavy for startup on free tier)
+    logger.info("FAISS and Agent will be lazy-loaded on first chat request.")
         
     yield
     # Shutdown
@@ -153,8 +147,18 @@ def predict_churn_endpoint(req: PredictRequest):
 @app.post("/chat", response_model=ChatResponse)
 def ai_chat_endpoint(req: ChatRequest, db: Session = Depends(get_db)):
     """Agentic chat interface powered by LangGraph, with SQLite history."""
+    global agent_app
+    
+    # Lazy-load FAISS + Agent on first chat request to save RAM at startup
     if not agent_app:
-        raise HTTPException(status_code=500, detail="AI Agent is not initialized. Check GROQ_API_KEY.")
+        try:
+            logger.info("Lazy-loading FAISS and LangGraph Agent...")
+            init_faiss()
+            agent_app = create_agent()
+            logger.info("Agent initialized successfully on first request.")
+        except Exception as e:
+            logger.error(f"Failed to initialize Agent: {e}")
+            raise HTTPException(status_code=500, detail=f"AI Agent failed to initialize: {str(e)}")
         
     # User message logging
     user_msg = ChatMessage(session_id=req.session_id, role="user", content=req.message)

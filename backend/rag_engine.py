@@ -76,7 +76,7 @@ def init_faiss():
         
         # Take a subset if the dataset is too huge to embed fully (for speed in this demo)
         # 10,000 rows x 384 dims takes a moment. Let's embed everything or at least first 2000.
-        subset_docs = docs[:2000] if len(docs) > 2000 else docs
+        subset_docs = docs[:500] if len(docs) > 500 else docs
         
         embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
         vector_store = FAISS.from_documents(subset_docs, embeddings)

@@ -7,13 +7,15 @@ services:
     startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DATABASE_URL
-        sync: false # Set this in the Render dashboard or it will use the one in .env if pushed
+        sync: false
       - key: GROQ_API_KEY
-        sync: false # User must set this in the Render dashboard
+        sync: false
       - key: DATA_PATH
         value: data/BankChurners.csv
       - key: PIP_EXTRA_INDEX_URL
         value: https://download.pytorch.org/whl/cpu
+      - key: MALLOC_ARENA_MAX
+        value: "2"
 
   # 2. Streamlit Frontend ("The Face")
   - type: web
