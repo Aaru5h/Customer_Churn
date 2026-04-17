@@ -122,5 +122,4 @@ Ensure the following are set in your Render services:
 
 ## 👥 Team Details
 
-- **Aarush Gupta**
-- **Enrollment Number:** 2401020001
+- **Aarush Gupta :** 2401020001
