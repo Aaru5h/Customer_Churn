@@ -117,3 +117,10 @@ Ensure the following are set in your Render services:
 - **Pydantic Validation**: All frontend requests are strictly validated before entering the ML pipeline.
 - **Agent Guardrails**: The LangGraph state machine enforces the `SYSTEM_PROMPT` recursively. It physically lacks tools to execute system operations or non-banking domain reasoning.
 - **Data Privacy**: Vector search runs entirely locally via FAISS and `sentence-transformers/all-MiniLM-L6-v2`. No raw tabular data is sent to external APIs (only context segments specifically requested in chat).
+
+---
+
+## 👥 Team Details
+
+- **Aarush Gupta**
+- **Enrollment Number:** 2401020001

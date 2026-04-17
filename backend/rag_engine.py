@@ -17,8 +17,9 @@ load_dotenv()
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from langchain_community.document_loaders import DataFrameLoader
 from langchain_community.vectorstores import FAISS
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEndpointEmbeddings
 from langchain_groq import ChatGroq
+import joblib
 from langchain.tools import tool
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
@@ -40,8 +41,14 @@ trained_pipeline_cache = None
 def get_trained_pipeline():
     global trained_pipeline_cache
     if not trained_pipeline_cache:
-        model_results = train_models(DATA_PATH)
-        trained_pipeline_cache = model_results["Logistic Regression"]["pipeline"]
+        model_path = "backend/models/pipeline.joblib"
+        if os.path.exists(model_path):
+            logger.info(f"Loading pre-trained model from {model_path}")
+            trained_pipeline_cache = joblib.load(model_path)
+        else:
+            logger.warning(f"Pre-trained model {model_path} not found. Training on the fly (CPU heavy!)...")
+            model_results = train_models(DATA_PATH)
+            trained_pipeline_cache = model_results["Logistic Regression"]["pipeline"]
     return trained_pipeline_cache
 
 def init_faiss():
@@ -78,7 +85,14 @@ def init_faiss():
         # 10,000 rows x 384 dims takes a moment. Let's embed everything or at least first 2000.
         subset_docs = docs[:500] if len(docs) > 500 else docs
         
-        embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+        hf_token = os.environ.get("HUGGINGFACEHUB_API_TOKEN")
+        if not hf_token:
+            logger.error("HUGGINGFACEHUB_API_TOKEN not found. RAG will fail.")
+            
+        embeddings = HuggingFaceEndpointEmbeddings(
+            model="sentence-transformers/all-MiniLM-L6-v2",
+            huggingfacehub_api_token=hf_token
+        )
         vector_store = FAISS.from_documents(subset_docs, embeddings)
         logger.info("FAISS Vector Store initialized successfully.")
     except Exception as e:

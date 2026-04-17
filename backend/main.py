@@ -45,12 +45,8 @@ async def lifespan(app: FastAPI):
     # 1. Initialize SQLite Database
     init_db()
     
-    # 2. Train Models (Cached within memory)
-    try:
-        model_results = train_models(DATA_PATH)
-        logger.info("Classical ML models trained successfully.")
-    except Exception as e:
-        logger.error(f"Failed to train models: {e}")
+    # 2. Models are loaded lazily when needed
+    logger.info("Models will be loaded lazily to save RAM.")
         
     # 3. FAISS + Agent are lazy-loaded on first /chat request to save RAM
     #    (sentence-transformers model is ~200MB — too heavy for startup on free tier)
