@@ -542,39 +542,230 @@ with st.sidebar:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# VERIFY BACKEND
+# VERIFY BACKEND  (with animated loading screen for cold-start wake-ups)
 # ═══════════════════════════════════════════════════════════════════════════
+if "wake_retries" not in st.session_state:
+    st.session_state["wake_retries"] = 0
+
 try:
     health = requests.get(f"{FASTAPI_URL}/", timeout=5)
     backend_up = health.status_code == 200
 except Exception:
     backend_up = False
 
-if not backend_up:
+if backend_up:
+    # Reset counter once the backend is alive
+    st.session_state["wake_retries"] = 0
+else:
+    st.session_state["wake_retries"] += 1
+    retries = st.session_state["wake_retries"]
+
+    # Rotating status messages
+    status_messages = [
+        "Initialising neural pathways…",
+        "Warming up ML inference engine…",
+        "Loading predictive models into memory…",
+        "Connecting to Neon database…",
+        "Calibrating FAISS vector store…",
+        "Bootstrapping LangGraph agent…",
+        "Hydrating model weights…",
+        "Spinning up FastAPI workers…",
+    ]
+    current_msg = status_messages[(retries - 1) % len(status_messages)]
+    elapsed = retries * 5  # approx seconds
+
     st.markdown(
-        """
-        <div style="
-            max-width: 480px; margin: 120px auto; text-align: center;
-            animation: fadeInUp 0.5s ease;
-        ">
-            <div style="font-size: 3rem; margin-bottom: 16px; opacity: 0.5;">⚡</div>
-            <h3 style="margin-bottom: 8px;">Backend Offline</h3>
-            <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6;">
-                The Neural Engine is not responding.
-                Start it with:
-            </p>
-            <code style="
-                display: inline-block; margin-top: 12px;
-                background: rgba(255,255,255,0.05);
-                border: 1px solid rgba(255,255,255,0.1);
-                border-radius: 10px; padding: 12px 20px;
-                font-size: 0.85rem; color: #A5B4FC;
-            ">uvicorn backend.main:app --reload</code>
+        f"""
+        <style>
+            /* ── Loading Orb ── */
+            @keyframes orb-float {{
+                0%, 100% {{ transform: translateY(0px) scale(1); }}
+                50% {{ transform: translateY(-18px) scale(1.05); }}
+            }}
+            @keyframes orb-glow {{
+                0%, 100% {{ box-shadow: 0 0 40px rgba(99,102,241,0.3), 0 0 80px rgba(99,102,241,0.1); }}
+                50% {{ box-shadow: 0 0 60px rgba(99,102,241,0.5), 0 0 120px rgba(99,102,241,0.15); }}
+            }}
+            @keyframes ring-spin {{
+                from {{ transform: rotate(0deg); }}
+                to {{ transform: rotate(360deg); }}
+            }}
+            @keyframes ring-spin-reverse {{
+                from {{ transform: rotate(360deg); }}
+                to {{ transform: rotate(0deg); }}
+            }}
+            @keyframes status-pulse {{
+                0%, 100% {{ opacity: 0.6; }}
+                50% {{ opacity: 1; }}
+            }}
+            @keyframes progress-sweep {{
+                0% {{ background-position: -200% 0; }}
+                100% {{ background-position: 200% 0; }}
+            }}
+            @keyframes dot-bounce {{
+                0%, 80%, 100% {{ transform: scale(0); opacity: 0.4; }}
+                40% {{ transform: scale(1); opacity: 1; }}
+            }}
+
+            .wake-container {{
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                min-height: 70vh;
+                animation: fadeInUp 0.6s ease;
+            }}
+
+            /* Orb with rings */
+            .orb-wrapper {{
+                position: relative;
+                width: 140px;
+                height: 140px;
+                margin-bottom: 40px;
+            }}
+            .orb-core {{
+                position: absolute;
+                top: 50%; left: 50%;
+                width: 56px; height: 56px;
+                transform: translate(-50%, -50%);
+                border-radius: 50%;
+                background: linear-gradient(135deg, #6366F1, #3B82F6, #8B5CF6);
+                animation: orb-float 3s ease-in-out infinite, orb-glow 3s ease-in-out infinite;
+                z-index: 2;
+            }}
+            .orb-ring {{
+                position: absolute;
+                top: 50%; left: 50%;
+                border-radius: 50%;
+                border: 1.5px solid transparent;
+            }}
+            .orb-ring-1 {{
+                width: 90px; height: 90px;
+                margin: -45px 0 0 -45px;
+                border-top-color: rgba(99,102,241,0.4);
+                border-right-color: rgba(99,102,241,0.1);
+                animation: ring-spin 3s linear infinite;
+            }}
+            .orb-ring-2 {{
+                width: 120px; height: 120px;
+                margin: -60px 0 0 -60px;
+                border-bottom-color: rgba(59,130,246,0.3);
+                border-left-color: rgba(59,130,246,0.08);
+                animation: ring-spin-reverse 4s linear infinite;
+            }}
+            .orb-ring-3 {{
+                width: 140px; height: 140px;
+                margin: -70px 0 0 -70px;
+                border-top-color: rgba(139,92,246,0.2);
+                animation: ring-spin 6s linear infinite;
+            }}
+
+            .wake-title {{
+                font-size: 1.4rem;
+                font-weight: 700;
+                letter-spacing: -0.02em;
+                margin-bottom: 8px;
+                background: linear-gradient(135deg, #E0E7FF, #C7D2FE, #A5B4FC);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+            }}
+            .wake-subtitle {{
+                color: rgba(241,245,249,0.45);
+                font-size: 0.88rem;
+                line-height: 1.6;
+                max-width: 400px;
+                text-align: center;
+                margin-bottom: 32px;
+            }}
+
+            /* Shimmer progress bar */
+            .progress-track {{
+                width: 280px;
+                height: 4px;
+                background: rgba(255,255,255,0.06);
+                border-radius: 4px;
+                overflow: hidden;
+                margin-bottom: 20px;
+            }}
+            .progress-fill {{
+                height: 100%;
+                border-radius: 4px;
+                background: linear-gradient(90deg,
+                    transparent 0%,
+                    rgba(99,102,241,0.6) 30%,
+                    rgba(59,130,246,0.8) 50%,
+                    rgba(99,102,241,0.6) 70%,
+                    transparent 100%
+                );
+                background-size: 200% 100%;
+                animation: progress-sweep 1.8s ease-in-out infinite;
+            }}
+
+            /* Status text */
+            .wake-status {{
+                color: rgba(165,180,252,0.8);
+                font-size: 0.78rem;
+                font-weight: 500;
+                letter-spacing: 0.02em;
+                animation: status-pulse 2s ease infinite;
+                margin-bottom: 8px;
+            }}
+            .wake-timer {{
+                color: rgba(241,245,249,0.2);
+                font-size: 0.7rem;
+                font-weight: 400;
+            }}
+
+            /* Bouncing dots */
+            .dots-row {{
+                display: flex;
+                gap: 6px;
+                margin: 24px 0 0;
+            }}
+            .dots-row span {{
+                width: 6px; height: 6px;
+                background: rgba(99,102,241,0.5);
+                border-radius: 50%;
+                display: inline-block;
+            }}
+            .dots-row span:nth-child(1) {{ animation: dot-bounce 1.4s 0s infinite ease-in-out; }}
+            .dots-row span:nth-child(2) {{ animation: dot-bounce 1.4s 0.16s infinite ease-in-out; }}
+            .dots-row span:nth-child(3) {{ animation: dot-bounce 1.4s 0.32s infinite ease-in-out; }}
+        </style>
+
+        <div class="wake-container">
+            <div class="orb-wrapper">
+                <div class="orb-core"></div>
+                <div class="orb-ring orb-ring-1"></div>
+                <div class="orb-ring orb-ring-2"></div>
+                <div class="orb-ring orb-ring-3"></div>
+            </div>
+
+            <div class="wake-title">Waking Up Neural Engine</div>
+            <div class="wake-subtitle">
+                Free-tier servers sleep after inactivity. The backend is booting up — 
+                this usually takes 30–60 seconds. Hang tight!
+            </div>
+
+            <div class="progress-track">
+                <div class="progress-fill"></div>
+            </div>
+
+            <div class="wake-status">{current_msg}</div>
+            <div class="wake-timer">Attempt {retries} · ~{elapsed}s elapsed</div>
+
+            <div class="dots-row">
+                <span></span><span></span><span></span>
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    st.stop()
+
+    # Auto-retry every 5 seconds
+    time.sleep(5)
+    st.rerun()
 
 
 # ═══════════════════════════════════════════════════════════════════════════

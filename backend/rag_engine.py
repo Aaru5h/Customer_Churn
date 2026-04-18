@@ -195,7 +195,7 @@ def create_agent():
     if not groq_api_key:
         raise ValueError("GROQ_API_KEY not found in environment variables.")
         
-    llm = ChatGroq(temperature=0, model_name="llama3-70b-8192")
+    llm = ChatGroq(temperature=0, model_name="llama-3.3-70b-versatile")
     llm_with_tools = llm.bind_tools(tools)
     
     SYSTEM_PROMPT = """You are the Bank Portfolio Security Analyst. 
