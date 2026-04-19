@@ -183,7 +183,10 @@ def save_retention_strategy(context: str, strategy: str) -> str:
     finally:
         db.close()
 
-tools = [search_customer_data, predict_churn_tool, save_retention_strategy]
+# search_customer_data is intentionally excluded from `tools` — it runs inline
+# in agent_node before every LLM call, so the model never needs to call it via
+# the tool-use API (which caused tool_use_failed 400 errors on Groq).
+tools = [predict_churn_tool, save_retention_strategy]
 
 # --- LangGraph Setup ---
 
@@ -195,60 +198,77 @@ def create_agent():
     if not groq_api_key:
         raise ValueError("GROQ_API_KEY not found in environment variables.")
 
-    # llama-3.1-70b-versatile produces stable JSON-format tool calls on Groq.
-    # llama-3.3-70b-versatile sometimes emits legacy XML-style function calls
-    # (<function=name{...}>) which Groq rejects with a 400 tool_use_failed error.
-    llm = ChatGroq(temperature=0, model_name="llama-3.1-70b-versatile")
+    # With only 2 tools (predict + save), the model rarely needs to call tools,
+    # which makes malformed XML-style tool calls extremely unlikely.
+    llm = ChatGroq(temperature=0, model_name="llama-3.3-70b-versatile")
     llm_with_tools = llm.bind_tools(tools)
-    llm_plain = ChatGroq(temperature=0, model_name="llama-3.1-70b-versatile")
+    llm_plain = ChatGroq(temperature=0, model_name="llama-3.3-70b-versatile")
 
     SYSTEM_PROMPT = """You are the Bank Portfolio Security Analyst.
 Your sole purpose is to analyze bank customer data, predict churn, and suggest retention strategies.
 
-GUARDRAIL:
-If a user asks about anything unrelated to banking, customer retention, churn predictions, or the data you have,
-you must strictly decline to answer. Reply with:
+GUARDRAIL: If a user asks about anything unrelated to banking, customer retention,
+churn predictions, or the data, decline with:
 "I am a specialized banking AI. I can only assist with customer churn and retention analysis."
 
-You have access to tools for searching historical customer data, predicting individual churn risk,
-and saving retention strategies. Use them when appropriate based on the user's question.
+Relevant customer records from the database will be provided to you above.
+Use this data to give specific, data-driven answers.
 
-Think carefully. Provide premium, structured, data-driven answers.
+You have two tools available:
+- Use the churn prediction tool ONLY when the user provides specific customer attributes (age, balance, etc.).
+- Use the save strategy tool ONLY when the user explicitly asks to save a strategy.
+
+Think carefully. Provide premium, structured answers.
 """
-
-    FALLBACK_PROMPT = (
-        SYSTEM_PROMPT
-        + "\n\nNote: Your data search tools are temporarily unavailable. "
-        "Answer from your general knowledge about banking and customer churn analysis."
-    )
 
     def agent_node(state: AgentState):
         messages = state["messages"]
-        if not any(isinstance(m, SystemMessage) for m in messages):
-            messages = [SystemMessage(content=SYSTEM_PROMPT)] + messages
 
-        # Tier-1: try with tools
+        # Always run FAISS search inline and inject results into the system prompt.
+        # This eliminates the need for search_customer_data as a bound tool.
+        rag_context = ""
+        user_messages = [m for m in messages if isinstance(m, HumanMessage)]
+        if user_messages and vector_store is not None:
+            latest_query = user_messages[-1].content
+            try:
+                results = vector_store.similarity_search(latest_query, k=5)
+                rag_context = "\n".join([r.page_content for r in results])
+            except Exception as e:
+                logger.warning(f"FAISS search failed: {e}")
+
+        context_block = (
+            f"\n\nRelevant customer data retrieved from the database:\n{rag_context}"
+            if rag_context else ""
+        )
+        full_system_prompt = SYSTEM_PROMPT + context_block
+
+        # Replace (or prepend) system message with the context-enriched version
+        if any(isinstance(m, SystemMessage) for m in messages):
+            messages = [
+                SystemMessage(content=full_system_prompt) if isinstance(m, SystemMessage) else m
+                for m in messages
+            ]
+        else:
+            messages = [SystemMessage(content=full_system_prompt)] + messages
+
+        # Tier-1: LLM with tools (predict + save only)
         try:
             response = llm_with_tools.invoke(messages)
             return {"messages": [response]}
         except Exception as e:
             logger.warning(f"Tool-calling LLM failed ({type(e).__name__}): {e}")
 
-        # Tier-2: fall back to plain LLM (no tools, same model)
+        # Tier-2: plain LLM, no tools — RAG context still injected
         try:
-            plain_messages = [SystemMessage(content=FALLBACK_PROMPT)] + [
-                m for m in messages if not isinstance(m, SystemMessage)
-            ]
-            response = llm_plain.invoke(plain_messages)
+            response = llm_plain.invoke(messages)
             return {"messages": [response]}
         except Exception as e:
             logger.error(f"Fallback plain LLM also failed: {e}")
 
-        # Tier-3: static safe response so nothing crashes
+        # Tier-3: static safe response — nothing can crash past this
         return {"messages": [AIMessage(content=(
-            "I'm having trouble connecting to my knowledge base right now. "
-            "Please try again in a moment, or ask me about customer churn trends "
-            "and retention strategies."
+            "I'm having trouble connecting right now. "
+            "Please try again in a moment."
         ))]}
         
     def should_continue(state: AgentState):
