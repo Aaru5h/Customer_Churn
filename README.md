@@ -1,5 +1,7 @@
 # AI Agentic Customer Churn Predictor
 
+🚀 **Live Demo:** [https://customer-churn-yf2q.onrender.com/](https://customer-churn-yf2q.onrender.com/)
+
 A production-grade, full-stack machine learning application that predicts the probability of credit card customer churn. It features a classical ML predictive core powered by Scikit-learn, combined with a cutting-edge **LangGraph & FAISS AI Retention Specialist Agent**.
 
 This architecture runs on a **FastAPI** backend ("The Brain") and a **Streamlit** frontend ("The Face") styled with a premium Glassmorphism design and highly secure guardrails.
@@ -134,6 +136,34 @@ Ensure the following are set in your Render services:
 - `GROQ_API_KEY`: Your Groq API key (Backend).
 - `HUGGINGFACEHUB_API_TOKEN`: Your HuggingFace API key (Backend).
 - `DATABASE_URL`: Your Neon Postgres connection string (Backend).
+
+---
+
+## 🔄 AI Agent Workflow
+
+The following diagram illustrates how the LangGraph AI Agent processes user queries, retrieves context, and triggers live predictions:
+
+```mermaid
+graph TD
+    User((User)) -->|Asks Question| Streamlit[Streamlit UI]
+    Streamlit -->|POST /api/chat| FastAPI[FastAPI Backend]
+    FastAPI --> LangGraph[LangGraph Agent]
+    
+    LangGraph -->|Analyze Query| Router{Query Router}
+    
+    Router -->|Needs Historical Context?| RAG[RAG Retrieval Tool]
+    Router -->|Needs Live Prediction?| Predictor[ML Prediction Tool]
+    Router -->|General Strategy| LLM[Groq LLM]
+    
+    RAG -->|Vector Search| FAISS[(FAISS Vector DB)]
+    FAISS -->|Customer Trends| LLM
+    
+    Predictor -->|Input Features| Model[Scikit-learn Model]
+    Model -->|Churn Probability| LLM
+    
+    LLM -->|Generate Actionable Response| FastAPI
+    FastAPI -->|Return JSON| Streamlit
+```
 
 ---
 
