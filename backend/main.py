@@ -19,8 +19,8 @@ from contextlib import asynccontextmanager
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 import pandas as pd
+import joblib
 
-from model import train_models, predict, get_feature_names
 from model import train_models, predict, get_feature_names
 from backend.db import init_db, get_db, ChatMessage, SessionLocal
 from backend.rag_engine import init_faiss, create_agent
@@ -31,27 +31,82 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # --- Global State ---
-DATA_PATH = "data/BankChurners.csv"
+DATA_PATH = os.environ.get("DATA_PATH", "data/BankChurners.csv")
 model_results = None
 agent_app = None
+
+# --- Helper: Lazy-load ML models ---
+def _ensure_models_loaded():
+    """
+    Lazy-load ML models on first request.
+    Tries to load pre-saved pipelines from disk first;
+    falls back to training from CSV if not found.
+    """
+    global model_results
+    if model_results is not None:
+        return
+
+    logger.info("Lazy-loading ML models (first request)...")
+
+    lr_path = "backend/models/pipeline_lr.joblib"
+    dt_path = "backend/models/pipeline_dt.joblib"
+    metrics_path = "backend/models/metrics.joblib"
+
+    # Try loading pre-saved models
+    if os.path.exists(lr_path) and os.path.exists(dt_path) and os.path.exists(metrics_path):
+        logger.info("Loading pre-trained models from disk...")
+        saved_metrics = joblib.load(metrics_path)
+        model_results = {
+            "Logistic Regression": {
+                "pipeline": joblib.load(lr_path),
+                "metrics": saved_metrics.get("Logistic Regression", {}),
+            },
+            "Decision Tree": {
+                "pipeline": joblib.load(dt_path),
+                "metrics": saved_metrics.get("Decision Tree", {}),
+            },
+        }
+        logger.info("Pre-trained models loaded successfully.")
+    elif os.path.exists("backend/models/pipeline.joblib"):
+        # Legacy: only one pipeline saved (Logistic Regression)
+        logger.info("Loading legacy single pipeline from disk + training Decision Tree...")
+        lr_pipeline = joblib.load("backend/models/pipeline.joblib")
+
+        # Train to get metrics + Decision Tree
+        results = train_models(DATA_PATH)
+        model_results = {
+            "Logistic Regression": {
+                "pipeline": lr_pipeline,
+                "metrics": results["Logistic Regression"]["metrics"],
+            },
+            "Decision Tree": {
+                "pipeline": results["Decision Tree"]["pipeline"],
+                "metrics": results["Decision Tree"]["metrics"],
+            },
+        }
+        logger.info("Models loaded (legacy + fresh train).")
+    else:
+        # No saved models — train from scratch
+        logger.info("No saved models found. Training from scratch...")
+        results = train_models(DATA_PATH)
+        model_results = {
+            "Logistic Regression": {
+                "pipeline": results["Logistic Regression"]["pipeline"],
+                "metrics": results["Logistic Regression"]["metrics"],
+            },
+            "Decision Tree": {
+                "pipeline": results["Decision Tree"]["pipeline"],
+                "metrics": results["Decision Tree"]["metrics"],
+            },
+        }
+        logger.info("Models trained successfully from scratch.")
+
 
 # --- Lifespan Events ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    logger.info("Starting up FastAPI - Initializing Models and DBs...")
-    global model_results, agent_app
-    
-    # 1. Database is initialized lazily to avoid startup timeouts on Render
-    logger.info("Database will be initialized lazily.")
-    
-    # 2. Models are loaded lazily when needed
-    logger.info("Models will be loaded lazily to save RAM.")
-        
-    # 3. FAISS + Agent are lazy-loaded on first /chat request to save RAM
-    #    (sentence-transformers model is ~200MB — too heavy for startup on free tier)
-    logger.info("FAISS and Agent will be lazy-loaded on first chat request.")
-        
+    logger.info("Starting up FastAPI - services will lazy-load on first request.")
     yield
     # Shutdown
     logger.info("Shutting down FastAPI...")
@@ -103,8 +158,14 @@ def health_check():
 @app.get("/metrics")
 def get_metrics(model_type: str = "Logistic Regression"):
     """Fetch stored performance metrics for the requested model."""
+    try:
+        _ensure_models_loaded()
+    except Exception as e:
+        logger.error(f"Failed to load models for metrics: {e}")
+        raise HTTPException(status_code=503, detail=f"Models are still initializing: {str(e)}")
+
     if not model_results or model_type not in model_results:
-        raise HTTPException(status_code=404, detail="Model metrics not found.")
+        raise HTTPException(status_code=404, detail=f"Model '{model_type}' not found. Available: {list(model_results.keys()) if model_results else 'none'}")
     
     metrics = model_results[model_type]["metrics"]
     
@@ -119,8 +180,14 @@ def get_metrics(model_type: str = "Logistic Regression"):
 @app.post("/predict", response_model=PredictResponse)
 def predict_churn_endpoint(req: PredictRequest):
     """Direct inference via classical ML models."""
+    try:
+        _ensure_models_loaded()
+    except Exception as e:
+        logger.error(f"Failed to load models for prediction: {e}")
+        raise HTTPException(status_code=503, detail=f"Models are still initializing: {str(e)}")
+
     if not model_results or req.model_type not in model_results:
-        raise HTTPException(status_code=500, detail="Model not initialized or wrong model type.")
+        raise HTTPException(status_code=400, detail=f"Model '{req.model_type}' not available.")
         
     pipeline = model_results[req.model_type]["pipeline"]
     
@@ -143,7 +210,7 @@ def predict_churn_endpoint(req: PredictRequest):
 
 @app.post("/chat", response_model=ChatResponse)
 def ai_chat_endpoint(req: ChatRequest, db: Session = Depends(get_db)):
-    """Agentic chat interface powered by LangGraph, with SQLite history."""
+    """Agentic chat interface powered by LangGraph, with database history."""
     global agent_app
     
     # Lazy-load FAISS + Agent on first chat request to save RAM at startup
@@ -182,7 +249,12 @@ def ai_chat_endpoint(req: ChatRequest, db: Session = Depends(get_db)):
         ai_response_content = final_state["messages"][-1].content
     except Exception as e:
         logger.error(f"Error invoking LangGraph Agent: {str(e)}")
-        ai_response_content = f"Error communicating with AI Brain: {str(e)}"
+        # Graceful fallback: return a helpful message instead of the raw error
+        ai_response_content = (
+            "I encountered an issue processing your request. "
+            "Please try rephrasing your question, or ask me about "
+            "customer churn trends, retention strategies, or specific customer profiles."
+        )
         
     # AI response logging
     ai_msg = ChatMessage(session_id=req.session_id, role="ai", content=ai_response_content)

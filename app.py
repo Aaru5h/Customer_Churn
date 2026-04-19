@@ -889,6 +889,8 @@ with tab_predict:
                 </div>
                 """, unsafe_allow_html=True)
 
+        elif response.status_code == 503:
+            st.warning("⏳ The ML engine is warming up. Please wait a moment and try again.", icon="⏳")
         else:
             st.error(f"Engine Error: {response.text}")
 
@@ -1003,7 +1005,7 @@ with tab_ai:
                     "message": user_text,
                 }
                 try:
-                    res = requests.post(f"{FASTAPI_URL}/chat", json=payload, timeout=60)
+                    res = requests.post(f"{FASTAPI_URL}/chat", json=payload, timeout=120)
                     if res.status_code == 200:
                         ai_reply = res.json()["response"]
                         st.session_state["chat_history"].append({"role": "ai", "content": ai_reply})
@@ -1033,7 +1035,7 @@ with tab_performance:
     st.markdown('<hr class="subtle-divider">', unsafe_allow_html=True)
 
     try:
-        res = requests.get(f"{FASTAPI_URL}/metrics?model_type={selected_model}", timeout=10)
+        res = requests.get(f"{FASTAPI_URL}/metrics?model_type={selected_model}", timeout=30)
 
         if res.status_code == 200:
             metrics = res.json()
@@ -1077,7 +1079,37 @@ with tab_performance:
             </div>
             """, unsafe_allow_html=True)
 
+        elif res.status_code == 503:
+            st.markdown("""
+            <div class="glass-card" style="text-align: center; padding: 40px;">
+                <div style="font-size: 2.5rem; margin-bottom: 12px;">⏳</div>
+                <h4 style="margin-bottom: 8px;">ML Engine Warming Up</h4>
+                <p style="color: var(--text-secondary); font-size: 0.88rem;">
+                    The predictive models are being loaded into memory.<br>
+                    This happens once after a cold start. Refresh in a few seconds.
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
         else:
-            st.error("Could not fetch metrics. Check backend server.")
+            st.markdown("""
+            <div class="glass-card" style="text-align: center; padding: 40px;">
+                <div style="font-size: 2.5rem; margin-bottom: 12px;">📊</div>
+                <h4 style="margin-bottom: 8px;">Metrics Loading</h4>
+                <p style="color: var(--text-secondary); font-size: 0.88rem;">
+                    The backend is preparing model metrics. Please try again shortly.
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+    except requests.exceptions.Timeout:
+        st.markdown("""
+        <div class="glass-card" style="text-align: center; padding: 40px;">
+            <div style="font-size: 2.5rem; margin-bottom: 12px;">⏳</div>
+            <h4 style="margin-bottom: 8px;">Models Training</h4>
+            <p style="color: var(--text-secondary); font-size: 0.88rem;">
+                The ML models are being trained for the first time. This can take 15–30 seconds.<br>
+                The page will automatically show results on next refresh.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
     except Exception as e:
         st.error(f"Connection error: {e}")

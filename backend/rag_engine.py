@@ -195,8 +195,11 @@ def create_agent():
     if not groq_api_key:
         raise ValueError("GROQ_API_KEY not found in environment variables.")
         
-    llm = ChatGroq(temperature=0, model_name="llama-3.3-70b-versatile")
+    # Use a model with reliable tool-calling support
+    llm = ChatGroq(temperature=0, model_name="meta-llama/llama-4-scout-17b-16e-instruct")
     llm_with_tools = llm.bind_tools(tools)
+    # Keep a plain LLM (no tools) as fallback for when tool-calling fails
+    llm_plain = ChatGroq(temperature=0, model_name="meta-llama/llama-4-scout-17b-16e-instruct")
     
     SYSTEM_PROMPT = """You are the Bank Portfolio Security Analyst. 
     Your sole purpose is to analyze bank customer data, predict churn, and suggest retention strategies.
@@ -219,15 +222,25 @@ def create_agent():
         # Ensure system prompt is applied
         if not any(isinstance(m, SystemMessage) for m in messages):
             messages = [SystemMessage(content=SYSTEM_PROMPT)] + messages
-        response = llm_with_tools.invoke(messages)
-        return {"messages": [response]}
+        
+        try:
+            response = llm_with_tools.invoke(messages)
+            return {"messages": [response]}
+        except Exception as e:
+            # Fallback: if tool-calling fails, respond without tools
+            logger.warning(f"Tool-calling failed, falling back to plain LLM: {e}")
+            fallback_messages = [SystemMessage(content=SYSTEM_PROMPT + "\n\nNote: Tools are temporarily unavailable. Answer based on your general knowledge about banking and customer churn.")] + [
+                m for m in messages if not isinstance(m, SystemMessage)
+            ]
+            response = llm_plain.invoke(fallback_messages)
+            return {"messages": [response]}
         
     def should_continue(state: AgentState):
         messages = state["messages"]
         last_message = messages[-1]
         
         # If there is no tool call, we finish
-        if not last_message.tool_calls:
+        if not hasattr(last_message, 'tool_calls') or not last_message.tool_calls:
             return "end"
         # Otherwise if there is a tool call, we route to the tool node
         else:

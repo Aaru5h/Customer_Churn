@@ -11,13 +11,36 @@ def pre_train():
     print("Training models locally...")
     results = train_models(DATA_PATH)
     
-    # We only need the pipeline for prediction
-    # Storing Logistic Regression as the primary model
-    model_path = "backend/models/pipeline.joblib"
-    os.makedirs(os.path.dirname(model_path), exist_ok=True)
+    os.makedirs("backend/models", exist_ok=True)
     
-    joblib.dump(results["Logistic Regression"]["pipeline"], model_path)
-    print(f"Successfully saved model to {model_path}")
+    # Save both pipelines
+    lr_path = "backend/models/pipeline_lr.joblib"
+    dt_path = "backend/models/pipeline_dt.joblib"
+    metrics_path = "backend/models/metrics.joblib"
+    
+    joblib.dump(results["Logistic Regression"]["pipeline"], lr_path)
+    print(f"Saved Logistic Regression pipeline to {lr_path}")
+    
+    joblib.dump(results["Decision Tree"]["pipeline"], dt_path)
+    print(f"Saved Decision Tree pipeline to {dt_path}")
+    
+    # Save metrics for both models (strip non-serializable objects like numpy arrays)
+    saved_metrics = {}
+    for model_name in ["Logistic Regression", "Decision Tree"]:
+        m = results[model_name]["metrics"]
+        saved_metrics[model_name] = {
+            "accuracy": float(m["accuracy"]),
+            "precision": float(m["precision"]),
+            "recall": float(m["recall"]),
+            "f1": float(m["f1"]),
+        }
+    
+    joblib.dump(saved_metrics, metrics_path)
+    print(f"Saved metrics to {metrics_path}")
+    
+    # Also keep the legacy single pipeline for backwards compatibility
+    joblib.dump(results["Logistic Regression"]["pipeline"], "backend/models/pipeline.joblib")
+    print("Done! All models and metrics saved.")
 
 if __name__ == "__main__":
     pre_train()

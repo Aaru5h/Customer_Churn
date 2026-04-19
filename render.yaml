@@ -10,6 +10,8 @@ services:
         sync: false
       - key: GROQ_API_KEY
         sync: false
+      - key: HUGGINGFACEHUB_API_TOKEN
+        sync: false
       - key: DATA_PATH
         value: data/BankChurners.csv
       - key: PIP_EXTRA_INDEX_URL
