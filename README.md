@@ -123,3 +123,4 @@ Ensure the following are set in your Render services:
 ## 👥 Team Details
 
 - **Aarush Gupta :** 2401020001
+- **Utkarsh :** 2401010484
