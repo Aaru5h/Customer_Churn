@@ -24,7 +24,7 @@ import joblib
 from model import train_models, predict, get_feature_names
 from backend.db import init_db, get_db, ChatMessage, SessionLocal
 from backend.rag_engine import init_faiss, create_agent
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, AIMessage
 
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -238,7 +238,7 @@ def ai_chat_endpoint(req: ChatRequest, db: Session = Depends(get_db)):
         if record.role == "user":
             langchain_messages.append(HumanMessage(content=record.content))
         else:
-            langchain_messages.append({"role": "assistant", "content": record.content}) # Or AIMessage if preferred
+            langchain_messages.append(AIMessage(content=record.content))
             
     # Include the current message in the state
     state = {"messages": langchain_messages}

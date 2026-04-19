@@ -1035,7 +1035,7 @@ with tab_performance:
     st.markdown('<hr class="subtle-divider">', unsafe_allow_html=True)
 
     try:
-        res = requests.get(f"{FASTAPI_URL}/metrics?model_type={selected_model}", timeout=30)
+        res = requests.get(f"{FASTAPI_URL}/metrics?model_type={selected_model}", timeout=60)
 
         if res.status_code == 200:
             metrics = res.json()

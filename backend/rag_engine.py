@@ -25,7 +25,7 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
 
-from model import predict, build_preprocessor, train_models
+from model import predict, train_models
 from backend.db import SessionLocal, RetentionStrategy
 
 import logging
@@ -194,46 +194,62 @@ def create_agent():
     groq_api_key = os.environ.get("GROQ_API_KEY")
     if not groq_api_key:
         raise ValueError("GROQ_API_KEY not found in environment variables.")
-        
-    # Use a model with reliable tool-calling support
-    llm = ChatGroq(temperature=0, model_name="meta-llama/llama-4-scout-17b-16e-instruct")
-    llm_with_tools = llm.bind_tools(tools)
-    # Keep a plain LLM (no tools) as fallback for when tool-calling fails
-    llm_plain = ChatGroq(temperature=0, model_name="meta-llama/llama-4-scout-17b-16e-instruct")
-    
-    SYSTEM_PROMPT = """You are the Bank Portfolio Security Analyst. 
-    Your sole purpose is to analyze bank customer data, predict churn, and suggest retention strategies.
-    
-    GUARDRAIL: 
-    If a user asks about anything unrelated to banking, customer retention, churn predictions, or the data you have, 
-    you must strictly decline to answer. Reply with:
-    "I am a specialized banking AI. I can only assist with customer churn and retention analysis."
 
-    Use the available tools intelligently:
-    - If asked about trends or to summarize how a demographic behaves, use `search_customer_data`.
-    - If asked to predict if a specific person will churn, use `predict_churn_tool`.
-    - If asked to save a strategy, use `save_retention_strategy`.
-    
-    Think carefully. Provide premium, structured, data-driven answers.
-    """
-    
+    # llama-3.1-70b-versatile produces stable JSON-format tool calls on Groq.
+    # llama-3.3-70b-versatile sometimes emits legacy XML-style function calls
+    # (<function=name{...}>) which Groq rejects with a 400 tool_use_failed error.
+    llm = ChatGroq(temperature=0, model_name="llama-3.1-70b-versatile")
+    llm_with_tools = llm.bind_tools(tools)
+    llm_plain = ChatGroq(temperature=0, model_name="llama-3.1-70b-versatile")
+
+    SYSTEM_PROMPT = """You are the Bank Portfolio Security Analyst.
+Your sole purpose is to analyze bank customer data, predict churn, and suggest retention strategies.
+
+GUARDRAIL:
+If a user asks about anything unrelated to banking, customer retention, churn predictions, or the data you have,
+you must strictly decline to answer. Reply with:
+"I am a specialized banking AI. I can only assist with customer churn and retention analysis."
+
+You have access to tools for searching historical customer data, predicting individual churn risk,
+and saving retention strategies. Use them when appropriate based on the user's question.
+
+Think carefully. Provide premium, structured, data-driven answers.
+"""
+
+    FALLBACK_PROMPT = (
+        SYSTEM_PROMPT
+        + "\n\nNote: Your data search tools are temporarily unavailable. "
+        "Answer from your general knowledge about banking and customer churn analysis."
+    )
+
     def agent_node(state: AgentState):
         messages = state["messages"]
-        # Ensure system prompt is applied
         if not any(isinstance(m, SystemMessage) for m in messages):
             messages = [SystemMessage(content=SYSTEM_PROMPT)] + messages
-        
+
+        # Tier-1: try with tools
         try:
             response = llm_with_tools.invoke(messages)
             return {"messages": [response]}
         except Exception as e:
-            # Fallback: if tool-calling fails, respond without tools
-            logger.warning(f"Tool-calling failed, falling back to plain LLM: {e}")
-            fallback_messages = [SystemMessage(content=SYSTEM_PROMPT + "\n\nNote: Tools are temporarily unavailable. Answer based on your general knowledge about banking and customer churn.")] + [
+            logger.warning(f"Tool-calling LLM failed ({type(e).__name__}): {e}")
+
+        # Tier-2: fall back to plain LLM (no tools, same model)
+        try:
+            plain_messages = [SystemMessage(content=FALLBACK_PROMPT)] + [
                 m for m in messages if not isinstance(m, SystemMessage)
             ]
-            response = llm_plain.invoke(fallback_messages)
+            response = llm_plain.invoke(plain_messages)
             return {"messages": [response]}
+        except Exception as e:
+            logger.error(f"Fallback plain LLM also failed: {e}")
+
+        # Tier-3: static safe response so nothing crashes
+        return {"messages": [AIMessage(content=(
+            "I'm having trouble connecting to my knowledge base right now. "
+            "Please try again in a moment, or ask me about customer churn trends "
+            "and retention strategies."
+        ))]}
         
     def should_continue(state: AgentState):
         messages = state["messages"]
