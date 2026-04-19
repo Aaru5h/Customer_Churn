@@ -38,7 +38,7 @@ We successfully overhauled the backend architecture into an **ultra-lightweight,
 1. **Lazy-Loading Architecture:** The FastAPI backend no longer loads heavy ML models or the FAISS vector database during the boot sequence. Instead, it boots instantly and only loads the required models into memory *upon the first user request*.
 2. **Pre-Serialization:** We decoupled the training pipeline. Models are now pre-trained locally and saved as `.joblib` binary files. In production, the backend simply loads the pre-computed weights, saving massive amounts of RAM and CPU time.
 3. **Cloud Embedding Offloading:** We stripped out local `PyTorch` dependencies entirely, shrinking the Docker/Render image size. The FAISS database now generates text embeddings via the **Hugging Face Cloud API**.
-4. **Optimized LLM Routing:** Upgraded the LangGraph node to use `meta-llama/llama-4-scout-17b-16e-instruct` via Groq, which completely eliminated the `400 Tool Use Failed` errors due to superior JSON tool-calling capabilities. 
+4. **Optimized LLM Routing:** Upgraded the LangGraph node to use `llama-3.3-70b-versatile` via Groq, which completely eliminated the `400 Tool Use Failed` errors due to superior JSON tool-calling capabilities. 
 5. **Robust Frontend UX:** Implemented graceful error handling and "Warming Up" animations in Streamlit. If the backend is asleep or waking up (returning a `503 Service Unavailable`), the frontend intercepts this and displays a friendly loading state rather than crashing.
 
 ---
