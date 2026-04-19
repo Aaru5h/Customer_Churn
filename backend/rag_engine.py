@@ -214,7 +214,10 @@ churn predictions, or the data, decline with:
 Relevant customer records from the database will be provided to you above.
 Use this data to give specific, data-driven answers.
 
-You have two tools available:
+IMPORTANT — Tool Usage Rules:
+- You have EXACTLY two tools: `predict_churn_tool` and `save_retention_strategy`.
+- You do NOT have a search tool. Do NOT attempt to call any search or retrieval function.
+- Customer data is ALREADY provided to you in this prompt — just use it directly.
 - Use the churn prediction tool ONLY when the user provides specific customer attributes (age, balance, etc.).
 - Use the save strategy tool ONLY when the user explicitly asks to save a strategy.
 
