@@ -548,7 +548,8 @@ if "wake_retries" not in st.session_state:
     st.session_state["wake_retries"] = 0
 
 try:
-    health = requests.get(f"{FASTAPI_URL}/", timeout=5)
+    # Use /ping — ultra-lightweight endpoint that doesn't trigger model loading
+    health = requests.get(f"{FASTAPI_URL}/ping", timeout=5)
     backend_up = health.status_code == 200
 except Exception:
     backend_up = False
@@ -572,7 +573,7 @@ else:
         "Spinning up FastAPI workers…",
     ]
     current_msg = status_messages[(retries - 1) % len(status_messages)]
-    elapsed = retries * 5  # approx seconds
+    elapsed = retries * 5
 
     st.markdown(
         f"""

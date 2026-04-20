@@ -1,3 +1,9 @@
+# Keep-alive strategy (free tier):
+# Set up a free external cron at https://cron-job.org to GET
+# https://customer-churn-backend-h9yb.onrender.com/ping every 14 minutes.
+# This prevents the backend from sleeping on Render's free tier.
+# The /ping endpoint is ultra-lightweight and does not trigger model loading.
+
 services:
   # 1. FastAPI Backend ("The Brain")
   - type: web

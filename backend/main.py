@@ -155,6 +155,11 @@ def health_check():
     logger.info("Health check endpoint hit.")
     return {"status": "ok", "message": "Brain is operational."}
 
+@app.get("/ping")
+def ping():
+    """Ultra-lightweight keep-alive endpoint. Does NOT trigger model loading."""
+    return {"status": "alive"}
+
 @app.get("/metrics")
 def get_metrics(model_type: str = "Logistic Regression"):
     """Fetch stored performance metrics for the requested model."""
