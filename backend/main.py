@@ -18,13 +18,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-import pandas as pd
-import joblib
 
-from model import train_models, predict, get_feature_names
+# NOTE: Heavy imports (model, rag_engine, pandas, joblib, langchain)
+# are deferred to inside functions to avoid OOM on Render free tier (512MB).
+# Only lightweight modules are imported at module level.
 from backend.db import init_db, get_db, ChatMessage, SessionLocal
-from backend.rag_engine import init_faiss, create_agent
-from langchain_core.messages import HumanMessage, AIMessage
 
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -42,6 +40,10 @@ def _ensure_models_loaded():
     Tries to load pre-saved pipelines from disk first;
     falls back to training from CSV if not found.
     """
+    import joblib
+    import pandas as pd
+    from model import train_models, predict, get_feature_names
+
     global model_results
     if model_results is not None:
         return
@@ -185,6 +187,9 @@ def get_metrics(model_type: str = "Logistic Regression"):
 @app.post("/predict", response_model=PredictResponse)
 def predict_churn_endpoint(req: PredictRequest):
     """Direct inference via classical ML models."""
+    import pandas as pd
+    from model import predict
+
     try:
         _ensure_models_loaded()
     except Exception as e:
@@ -216,6 +221,9 @@ def predict_churn_endpoint(req: PredictRequest):
 @app.post("/chat", response_model=ChatResponse)
 def ai_chat_endpoint(req: ChatRequest, db: Session = Depends(get_db)):
     """Agentic chat interface powered by LangGraph, with database history."""
+    from backend.rag_engine import init_faiss, create_agent
+    from langchain_core.messages import HumanMessage, AIMessage
+
     global agent_app
     
     # Lazy-load FAISS + Agent on first chat request to save RAM at startup
