@@ -1,8 +1,8 @@
 # Keep-alive strategy (free tier):
-# Set up a free external cron at https://cron-job.org to GET
-# https://customer-churn-backend-h9yb.onrender.com/ping every 14 minutes.
-# This prevents the backend from sleeping on Render's free tier.
-# The /ping endpoint is ultra-lightweight and does not trigger model loading.
+# The backend includes a built-in self-ping background task that hits
+# its own /ping endpoint every 13 minutes to prevent Render from
+# spinning down the instance due to inactivity.
+# No external cron service is required.
 
 services:
   # 1. FastAPI Backend ("The Brain")
@@ -24,6 +24,8 @@ services:
         value: https://download.pytorch.org/whl/cpu
       - key: MALLOC_ARENA_MAX
         value: "2"
+      - key: RENDER_EXTERNAL_URL
+        value: https://customer-churn-backend-h9yb.onrender.com
 
   # 2. Streamlit Frontend ("The Face")
   - type: web

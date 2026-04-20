@@ -7,6 +7,7 @@ Serves endpoints for classical ML predictions and RAG-based AI chat.
 
 import sys
 import os
+import asyncio
 from dotenv import load_dotenv
 load_dotenv()  # Load variables from .env if present
 
@@ -32,6 +33,38 @@ logger = logging.getLogger(__name__)
 DATA_PATH = os.environ.get("DATA_PATH", "data/BankChurners.csv")
 model_results = None
 agent_app = None
+
+# --- Keep-Alive Self-Ping ---
+SELF_PING_INTERVAL = int(os.environ.get("SELF_PING_INTERVAL", "780"))  # 13 minutes
+
+async def _keep_alive_ping():
+    """
+    Background task that pings the server's own /ping endpoint
+    every 13 minutes to prevent Render free tier from spinning down
+    the instance due to inactivity.
+    """
+    import httpx
+    # Determine our own URL from Render's environment variable
+    render_external_url = os.environ.get("RENDER_EXTERNAL_URL")
+    port = os.environ.get("PORT", "10000")
+
+    if render_external_url:
+        ping_url = f"{render_external_url}/ping"
+    else:
+        # Fallback: ping localhost (works in all environments)
+        ping_url = f"http://0.0.0.0:{port}/ping"
+
+    logger.info(f"Keep-alive task started. Will self-ping {ping_url} every {SELF_PING_INTERVAL}s")
+
+    while True:
+        await asyncio.sleep(SELF_PING_INTERVAL)
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(ping_url)
+                logger.info(f"Keep-alive ping: {resp.status_code}")
+        except Exception as e:
+            logger.warning(f"Keep-alive ping failed (non-fatal): {e}")
+
 
 # --- Helper: Lazy-load ML models ---
 def _ensure_models_loaded():
@@ -109,8 +142,16 @@ def _ensure_models_loaded():
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting up FastAPI - services will lazy-load on first request.")
+    # Start background keep-alive task to prevent Render free tier spin-down
+    keep_alive_task = asyncio.create_task(_keep_alive_ping())
+    logger.info("Background keep-alive task scheduled.")
     yield
-    # Shutdown
+    # Shutdown — cancel the keep-alive task
+    keep_alive_task.cancel()
+    try:
+        await keep_alive_task
+    except asyncio.CancelledError:
+        pass
     logger.info("Shutting down FastAPI...")
 
 app = FastAPI(title="Churn Predictor & AI Retention Agent", lifespan=lifespan)
